@@ -16,7 +16,7 @@ X_train, X_test, y_train, y_test = train_test_split(
 )
 
 # Train a Random Forest
-model = RandomForestClassifier(n_estimators=200, random_state=42, class_weight="balanced")
+model = RandomForestClassifier(n_estimators=50, random_state=42, class_weight="balanced")
 model.fit(X_train, y_train)
 
 # Evaluate
