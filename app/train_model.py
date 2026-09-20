@@ -5,7 +5,7 @@ from sklearn.metrics import classification_report, confusion_matrix
 import joblib
 
 # Load the labeled dataset
-df = pd.read_csv("data/url_training_data.csv")
+df = pd.read_csv("data/url_training_data_v2.csv")
 
 X = df.drop(columns=["label"])
 y = df["label"]
@@ -33,5 +33,5 @@ for name, importance in zip(X.columns, model.feature_importances_):
     print(f"{name}: {importance:.3f}")
 
 # Save the trained model for later use in the API
-joblib.dump(model, "app/url_model.pkl")
+joblib.dump(model, "app/url_model_v2.pkl")
 print("\nModel saved to app/url_model.pkl")

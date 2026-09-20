@@ -1,9 +1,12 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
 from urllib.parse import urlparse
+import joblib
+import pandas as pd
 import re
 
 app = FastAPI(title="Scam Detection API")
+url_model = joblib.load("app/url_model_v2.pkl")
 
 class URLRequest(BaseModel):
     url: str
@@ -45,8 +48,41 @@ def score_url(features: dict) -> dict:
 @app.post("/detect")
 def detect(request: URLRequest):
     features = extract_url_features(request.url)
-    result = score_url(features)
-    return {"url": request.url, "features": features, **result}
+
+    # Prepare features in the exact column order the model was trained on
+    feature_order = ["url_length", "https", "subdomain_count", "has_ip", "hyphen_count",
+                      "digit_ratio", "path_length", "has_at_symbol", "brand_keyword_count"]
+
+    # Add the extra features (matching training script) not yet in extract_url_features
+    hostname = urlparse(request.url if "://" in request.url else "http://" + request.url).netloc.split(":")[0]
+    path = urlparse(request.url if "://" in request.url else "http://" + request.url).path
+    digit_ratio = sum(c.isdigit() for c in hostname) / max(len(hostname), 1)
+    brand_keywords = ["paypal", "amazon", "bank", "login", "secure", "verify", "account", "update", "confirm", "signin"]
+
+    full_features = {
+        **features,
+        "digit_ratio": round(digit_ratio, 3),
+        "path_length": len(path),
+        "has_at_symbol": int("@" in request.url),
+        "brand_keyword_count": sum(1 for kw in brand_keywords if kw in hostname.lower()),
+    }
+
+    X = pd.DataFrame([full_features])[feature_order]
+    ml_probability = url_model.predict_proba(X)[0][1]  # probability of being malicious
+    ml_score = round(ml_probability * 100)
+
+    # Rule-based reasons (kept for explanation, not for scoring anymore)
+    rule_result = score_url(features)
+
+    verdict = "HIGH RISK" if ml_score >= 60 else "SUSPICIOUS" if ml_score >= 30 else "LOW RISK"
+
+    return {
+        "url": request.url,
+        "features": full_features,
+        "risk_score": ml_score,
+        "verdict": verdict,
+        "reasons": rule_result["reasons"] if rule_result["reasons"] else ["No specific red flags, but model detected a pattern consistent with malicious URLs"] if ml_score >= 30 else ["No significant risk indicators found"]
+    }
 class MessageRequest(BaseModel):
     message: str
 
