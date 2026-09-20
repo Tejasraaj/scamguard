@@ -47,3 +47,49 @@ def detect(request: URLRequest):
     features = extract_url_features(request.url)
     result = score_url(features)
     return {"url": request.url, "features": features, **result}
+class MessageRequest(BaseModel):
+    message: str
+
+URGENCY_WORDS = ["urgent", "immediately", "act now", "suspended", "verify now", "expire", "limited time"]
+CREDENTIAL_WORDS = ["password", "otp", "pin", "cvv", "verify your account", "bank details", "card number"]
+PRIZE_WORDS = ["congratulations", "winner", "lottery", "prize", "claim your", "free gift"]
+
+def extract_message_features(message: str) -> dict:
+    text = message.lower()
+    return {
+        "length": len(message),
+        "has_url": bool(re.search(r"https?://|www\.", text)),
+        "urgency_hits": sum(1 for w in URGENCY_WORDS if w in text),
+        "credential_hits": sum(1 for w in CREDENTIAL_WORDS if w in text),
+        "prize_hits": sum(1 for w in PRIZE_WORDS if w in text),
+        "exclaim_count": message.count("!"),
+        "caps_ratio": sum(1 for c in message if c.isupper()) / max(len(message), 1),
+    }
+
+def score_message(features: dict) -> dict:
+    risk = 0
+    reasons = []
+    if features["urgency_hits"] > 0:
+        risk += 25
+        reasons.append("Contains urgency or threatening language")
+    if features["credential_hits"] > 0:
+        risk += 35
+        reasons.append("Requests sensitive credentials or financial info")
+    if features["prize_hits"] > 0:
+        risk += 25
+        reasons.append("Contains prize or reward scam language")
+    if features["has_url"]:
+        risk += 10
+        reasons.append("Contains a link")
+    if features["exclaim_count"] >= 2:
+        risk += 5
+        reasons.append("Excessive exclamation marks")
+
+    verdict = "HIGH RISK" if risk >= 60 else "SUSPICIOUS" if risk >= 30 else "LOW RISK"
+    return {"risk_score": min(risk, 100), "verdict": verdict, "reasons": reasons}
+
+@app.post("/detect-message")
+def detect_message(request: MessageRequest):
+    features = extract_message_features(request.message)
+    result = score_message(features)
+    return {"message": request.message, "features": features, **result}
