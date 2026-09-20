@@ -28,38 +28,30 @@ def extract_url_features(url: str) -> dict:
     except Exception:
         return None
 
-# --- Legitimate URLs from Tranco (sample 15,000 to balance dataset size) ---
-tranco = pd.read_csv("data/raw/tranco_PY96J.csv", header=None, names=["rank", "domain"])
-legit_sample = ("https://" + tranco["domain"].sample(n=15000, random_state=42)).tolist()
+# Load, keeping only well-formed rows with valid labels
+df_raw = pd.read_csv("data/raw/url_dataset.csv", on_bad_lines="skip", engine="python")
+df_raw = df_raw[df_raw["type"].isin(["legitimate", "phishing"])].dropna(subset=["url"])
 
-# --- Malicious URLs (OpenPhish + URLhaus) ---
-with open("data/raw/openphish.txt", "r", encoding="utf-8", errors="ignore") as f:
-    openphish_urls = [line.strip() for line in f if line.strip()]
+print(f"Loaded {len(df_raw)} valid labeled rows")
+print(df_raw["type"].value_counts())
 
-urlhaus = pd.read_csv(
-    "data/raw/urlhaus.csv", comment="#", header=None,
-    names=["id", "dateadded", "url", "url_status", "last_online", "threat", "tags", "urlhaus_link", "reporter"]
-)
-malicious_urls = list(set(openphish_urls + urlhaus["url"].dropna().tolist()))
+# Balance classes: sample equal numbers from each (avoids class-imbalance bias)
+n_per_class = min(df_raw["type"].value_counts())
+legit_sample = df_raw[df_raw["type"] == "legitimate"].sample(n=n_per_class, random_state=42)
+phish_sample = df_raw[df_raw["type"] == "phishing"].sample(n=n_per_class, random_state=42)
+df_balanced = pd.concat([legit_sample, phish_sample], ignore_index=True)
 
-# --- Build feature rows ---
+# Extract features
 rows = []
-for url in legit_sample:
-    feats = extract_url_features(url)
+for _, row in df_balanced.iterrows():
+    feats = extract_url_features(row["url"])
     if feats:
-        feats["label"] = 0
+        feats["label"] = 1 if row["type"] == "phishing" else 0
         rows.append(feats)
 
-for url in malicious_urls:
-    feats = extract_url_features(url)
-    if feats:
-        feats["label"] = 1
-        rows.append(feats)
+df_final = pd.DataFrame(rows)
+df_final.to_csv("data/url_training_data_v2.csv", index=False)
 
-df = pd.DataFrame(rows)
-df.to_csv("data/url_training_data.csv", index=False)
-
-print(f"Total rows: {len(df)}")
-print(df["label"].value_counts())
-print(df.head())
-
+print(f"\nFinal training set: {len(df_final)} rows")
+print(df_final["label"].value_counts())
+print(df_final.head())
