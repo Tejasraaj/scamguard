@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
 from urllib.parse import urlparse
+from app.database import SessionLocal, URLAnalysis, MessageAnalysis
 import joblib
 import pandas as pd
 import re
@@ -49,13 +50,17 @@ def score_url(features: dict) -> dict:
 def detect(request: URLRequest):
     features = extract_url_features(request.url)
 
-    # Prepare features in the exact column order the model was trained on
     feature_order = ["url_length", "https", "subdomain_count", "has_ip", "hyphen_count",
                       "digit_ratio", "path_length", "has_at_symbol", "brand_keyword_count"]
 
-    # Add the extra features (matching training script) not yet in extract_url_features
-    hostname = urlparse(request.url if "://" in request.url else "http://" + request.url).netloc.split(":")[0]
-    path = urlparse(request.url if "://" in request.url else "http://" + request.url).path
+    if "://" in request.url:
+        full_url = request.url
+    else:
+        full_url = "http://" + request.url
+
+    parsed_full = urlparse(full_url)
+    hostname = parsed_full.netloc.split(":")[0]
+    path = parsed_full.path
     digit_ratio = sum(c.isdigit() for c in hostname) / max(len(hostname), 1)
     brand_keywords = ["paypal", "amazon", "bank", "login", "secure", "verify", "account", "update", "confirm", "signin"]
 
@@ -68,21 +73,37 @@ def detect(request: URLRequest):
     }
 
     X = pd.DataFrame([full_features])[feature_order]
-    ml_probability = url_model.predict_proba(X)[0][1]  # probability of being malicious
+    ml_probability = url_model.predict_proba(X)[0][1]
     ml_score = round(ml_probability * 100)
 
-    # Rule-based reasons (kept for explanation, not for scoring anymore)
     rule_result = score_url(features)
 
     verdict = "HIGH RISK" if ml_score >= 60 else "SUSPICIOUS" if ml_score >= 30 else "LOW RISK"
+    reasons = rule_result["reasons"] if rule_result["reasons"] else (
+        ["No specific red flags, but model detected a pattern consistent with malicious URLs"]
+        if ml_score >= 30 else ["No significant risk indicators found"]
+    )
+
+    db = SessionLocal()
+    record = URLAnalysis(
+        url=request.url,
+        risk_score=ml_score,
+        verdict=verdict,
+        reasons=", ".join(reasons)
+    )
+    db.add(record)
+    db.commit()
+    db.close()
 
     return {
         "url": request.url,
         "features": full_features,
         "risk_score": ml_score,
         "verdict": verdict,
-        "reasons": rule_result["reasons"] if rule_result["reasons"] else ["No specific red flags, but model detected a pattern consistent with malicious URLs"] if ml_score >= 30 else ["No significant risk indicators found"]
+        "reasons": reasons
     }
+
+
 class MessageRequest(BaseModel):
     message: str
 
@@ -128,4 +149,16 @@ def score_message(features: dict) -> dict:
 def detect_message(request: MessageRequest):
     features = extract_message_features(request.message)
     result = score_message(features)
+
+    db = SessionLocal()
+    record = MessageAnalysis(
+        message=request.message,
+        risk_score=result["risk_score"],
+        verdict=result["verdict"],
+        reasons=", ".join(result["reasons"])
+    )
+    db.add(record)
+    db.commit()
+    db.close()
+
     return {"message": request.message, "features": features, **result}
