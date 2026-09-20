@@ -1,4 +1,6 @@
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from urllib.parse import urlparse
 from app.database import SessionLocal, URLAnalysis, MessageAnalysis
@@ -8,6 +10,12 @@ import re
 
 app = FastAPI(title="Scam Detection API")
 url_model = joblib.load("app/url_model_v2.pkl")
+
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
+
+@app.get("/")
+def serve_frontend():
+    return FileResponse("app/static/index.html")
 
 class URLRequest(BaseModel):
     url: str
@@ -162,3 +170,22 @@ def detect_message(request: MessageRequest):
     db.close()
 
     return {"message": request.message, "features": features, **result}
+
+
+@app.get("/history")
+def get_history():
+    db = SessionLocal()
+    urls = db.query(URLAnalysis).order_by(URLAnalysis.id.desc()).limit(20).all()
+    messages = db.query(MessageAnalysis).order_by(MessageAnalysis.id.desc()).limit(20).all()
+    db.close()
+
+    return {
+        "urls": [
+            {"id": u.id, "url": u.url, "risk_score": u.risk_score, "verdict": u.verdict, "reasons": u.reasons}
+            for u in urls
+        ],
+        "messages": [
+            {"id": m.id, "message": m.message, "risk_score": m.risk_score, "verdict": m.verdict, "reasons": m.reasons}
+            for m in messages
+        ]
+    }

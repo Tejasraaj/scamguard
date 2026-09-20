@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Scam Detection System</title>
+<style>
+  body { font-family: Arial, sans-serif; max-width: 700px; margin: 40px auto; background: #0f1117; color: #e6e6e6; }
+  h1 { text-align: center; }
+  .tabs { display: flex; margin-bottom: 20px; }
+  .tab { flex: 1; padding: 10px; text-align: center; cursor: pointer; background: #1c1f2b; border: none; color: #ccc; }
+  .tab.active { background: #2d6cdf; color: white; }
+  textarea, input { width: 100%; padding: 10px; margin-top: 10px; border-radius: 6px; border: 1px solid #333; background: #1c1f2b; color: white; box-sizing: border-box; }
+  button.analyze { margin-top: 10px; padding: 10px 20px; background: #2d6cdf; color: white; border: none; border-radius: 6px; cursor: pointer; }
+  .result { margin-top: 20px; padding: 15px; border-radius: 8px; }
+  .LOW { background: #163d24; border: 1px solid #2ecc71; }
+  .SUSPICIOUS { background: #4d3b12; border: 1px solid #f1c40f; }
+  .HIGH { background: #4d1414; border: 1px solid #e74c3c; }
+  ul { padding-left: 20px; }
+  table { width: 100%; margin-top: 30px; border-collapse: collapse; font-size: 14px; }
+  th, td { border: 1px solid #333; padding: 6px; text-align: left; }
+  th { background: #1c1f2b; }
+</style>
+</head>
+<body>
+
+<h1>🛡️ Scam Detection System</h1>
+
+<div class="tabs">
+  <button class="tab active" onclick="switchTab('url')">Check URL</button>
+  <button class="tab" onclick="switchTab('message')">Check Message</button>
+</div>
+
+<div id="url-panel">
+  <input id="url-input" placeholder="Enter a URL, e.g. https://example.com/login" />
+  <button class="analyze" onclick="analyzeUrl()">Analyze URL</button>
+</div>
+
+<div id="message-panel" style="display:none;">
+  <textarea id="message-input" rows="4" placeholder="Paste a suspicious message here..."></textarea>
+  <button class="analyze" onclick="analyzeMessage()">Analyze Message</button>
+</div>
+
+<div id="result"></div>
+
+<h2>Recent Detections</h2>
+<table id="history-table">
+  <thead><tr><th>Type</th><th>Content</th><th>Score</th><th>Verdict</th></tr></thead>
+  <tbody></tbody>
+</table>
+
+<script>
+function switchTab(tab) {
+  document.getElementById('url-panel').style.display = tab === 'url' ? 'block' : 'none';
+  document.getElementById('message-panel').style.display = tab === 'message' ? 'block' : 'none';
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  event.target.classList.add('active');
+}
+
+function verdictClass(v) {
+  if (v === 'HIGH RISK') return 'HIGH';
+  if (v === 'SUSPICIOUS') return 'SUSPICIOUS';
+  return 'LOW';
+}
+
+function renderResult(data, label) {
+  const cls = verdictClass(data.verdict);
+  document.getElementById('result').innerHTML = `
+    <div class="result ${cls}">
+      <h3>${data.verdict} — Score: ${data.risk_score}/100</h3>
+      <strong>${label}:</strong> ${data.url || data.message}
+      <ul>${data.reasons.map(r => `<li>${r}</li>`).join('')}</ul>
+    </div>`;
+  loadHistory();
+}
+
+async function analyzeUrl() {
+  const url = document.getElementById('url-input').value;
+  const res = await fetch('/detect', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({url})
+  });
+  const data = await res.json();
+  renderResult(data, 'URL');
+}
+
+async function analyzeMessage() {
+  const message = document.getElementById('message-input').value;
+  const res = await fetch('/detect-message', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({message})
+  });
+  const data = await res.json();
+  renderResult(data, 'Message');
+}
+
+async function loadHistory() {
+  const res = await fetch('/history');
+  const data = await res.json();
+  const rows = [];
+  data.urls.forEach(u => rows.push({type: 'URL', content: u.url, score: u.risk_score, verdict: u.verdict}));
+  data.messages.forEach(m => rows.push({type: 'Message', content: m.message, score: m.risk_score, verdict: m.verdict}));
+  const tbody = document.querySelector('#history-table tbody');
+  tbody.innerHTML = rows.map(r => `
+    <tr><td>${r.type}</td><td>${r.content.substring(0,40)}</td><td>${r.score}</td><td>${r.verdict}</td></tr>
+  `).join('');
+}
+
+loadHistory();
+</script>
+
+</body>
+</html>
