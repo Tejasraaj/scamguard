@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Text
+from sqlalchemy import create_engine, Column, Integer, String, DateTime, Text
 from sqlalchemy.orm import declarative_base, sessionmaker
 from dotenv import load_dotenv
 import os
@@ -12,14 +12,16 @@ engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
+
 class URLAnalysis(Base):
     __tablename__ = "url_analysis"
     id = Column(Integer, primary_key=True, index=True)
     url = Column(Text, nullable=False)
     risk_score = Column(Integer)
     verdict = Column(String)
-    reasons = Column(Text)  # stored as comma-separated text for simplicity
+    reasons = Column(Text)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
 
 class MessageAnalysis(Base):
     __tablename__ = "message_analysis"
@@ -30,8 +32,19 @@ class MessageAnalysis(Base):
     reasons = Column(Text)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
+
+class Blocklist(Base):
+    __tablename__ = "blocklist"
+    id = Column(Integer, primary_key=True, index=True)
+    domain = Column(String, unique=True, nullable=False, index=True)
+    times_seen = Column(Integer, default=1)
+    first_seen = Column(DateTime, default=datetime.datetime.utcnow)
+    last_seen = Column(DateTime, default=datetime.datetime.utcnow)
+
+
 def init_db():
     Base.metadata.create_all(bind=engine)
+
 
 def get_db():
     db = SessionLocal()

@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <title>Scam Detection System</title>
 <style>
-  body { font-family: Arial, sans-serif; max-width: 700px; margin: 40px auto; background: #0f1117; color: #e6e6e6; }
+  body { font-family: Arial, sans-serif; max-width: 700px; margin: 40px auto; background: #0f1117; color: #e6e6e6; padding: 0 10px; }
   h1 { text-align: center; }
   .tabs { display: flex; margin-bottom: 20px; }
   .tab { flex: 1; padding: 10px; text-align: center; cursor: pointer; background: #1c1f2b; border: none; color: #ccc; }
@@ -15,8 +15,11 @@
   .LOW { background: #163d24; border: 1px solid #2ecc71; }
   .SUSPICIOUS { background: #4d3b12; border: 1px solid #f1c40f; }
   .HIGH { background: #4d1414; border: 1px solid #e74c3c; }
+  .blockbar { background: #b01919; color: white; padding: 10px; font-weight: bold; border-radius: 6px; margin-bottom: 10px; }
+  code { background: #000; padding: 2px 6px; border-radius: 4px; word-break: break-all; }
+  a { color: #7fb0ff; }
   ul { padding-left: 20px; }
-  table { width: 100%; margin-top: 30px; border-collapse: collapse; font-size: 14px; }
+  table { width: 100%; margin-top: 10px; border-collapse: collapse; font-size: 14px; }
   th, td { border: 1px solid #333; padding: 6px; text-align: left; }
   th { background: #1c1f2b; }
 </style>
@@ -26,8 +29,8 @@
 <h1>🛡️ Scam Detection System</h1>
 
 <div class="tabs">
-  <button class="tab active" onclick="switchTab('url')">Check URL</button>
-  <button class="tab" onclick="switchTab('message')">Check Message</button>
+  <button class="tab active" onclick="switchTab('url', this)">Check URL</button>
+  <button class="tab" onclick="switchTab('message', this)">Check Message</button>
 </div>
 
 <div id="url-panel">
@@ -48,12 +51,28 @@
   <tbody></tbody>
 </table>
 
+<h2>Blocklist (domains flagged high risk)</h2>
+<table id="blocklist-table">
+  <thead><tr><th>Domain</th><th>Times seen</th></tr></thead>
+  <tbody></tbody>
+</table>
+
 <script>
-function switchTab(tab) {
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, function (c) {
+    return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c];
+  });
+}
+
+function defang(u) {
+  return u.replace(/^http/i, 'hxxp').replace(/\./g, '[.]');
+}
+
+function switchTab(tab, btn) {
   document.getElementById('url-panel').style.display = tab === 'url' ? 'block' : 'none';
   document.getElementById('message-panel').style.display = tab === 'message' ? 'block' : 'none';
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  event.target.classList.add('active');
+  document.querySelectorAll('.tab').forEach(function (t) { t.classList.remove('active'); });
+  btn.classList.add('active');
 }
 
 function verdictClass(v) {
@@ -62,52 +81,93 @@ function verdictClass(v) {
   return 'LOW';
 }
 
-function renderResult(data, label) {
-  const cls = verdictClass(data.verdict);
-  document.getElementById('result').innerHTML = `
-    <div class="result ${cls}">
-      <h3>${data.verdict} — Score: ${data.risk_score}/100</h3>
-      <strong>${label}:</strong> ${data.url || data.message}
-      <ul>${data.reasons.map(r => `<li>${r}</li>`).join('')}</ul>
-    </div>`;
+function renderResult(data, kind) {
+  var cls = verdictClass(data.verdict);
+  var text = kind === 'URL' ? data.url : data.message;
+  var banner = '';
+  var shown = esc(text);
+
+  if (data.verdict === 'HIGH RISK') {
+    var action = kind === 'URL' ? 'do not open this link' : 'do not reply or click anything';
+    var extra = data.blocked ? ' (domain is on the blocklist)' : '';
+    banner = '<div class="blockbar">&#9940; BLOCKED: ' + action + extra + '</div>';
+    if (kind === 'URL') {
+      shown = '<code>' + esc(defang(text)) + '</code> (link disabled)';
+    }
+  } else if (kind === 'URL' && data.verdict === 'LOW RISK' && /^https?:\/\//i.test(text)) {
+    shown = esc(text) + ' <a href="' + esc(text) + '" target="_blank" rel="noopener noreferrer">open link</a>';
+  }
+
+  var reasons = data.reasons.map(function (r) { return '<li>' + esc(r) + '</li>'; }).join('');
+  var recs = data.recommendations.map(function (r) { return '<li>' + esc(r) + '</li>'; }).join('');
+
+  document.getElementById('result').innerHTML =
+    '<div class="result ' + cls + '">' + banner +
+    '<h3>' + esc(data.verdict) + ' - Score: ' + esc(data.risk_score) + '/100</h3>' +
+    '<strong>' + kind + ':</strong> ' + shown +
+    '<h4>Why it was flagged</h4><ul>' + reasons + '</ul>' +
+    '<h4>Recommended actions</h4><ul>' + recs + '</ul></div>';
+
   loadHistory();
+  loadBlocklist();
+}
+
+function showError(msg) {
+  document.getElementById('result').innerHTML = '<div class="result HIGH">' + esc(msg) + '</div>';
 }
 
 async function analyzeUrl() {
-  const url = document.getElementById('url-input').value;
-  const res = await fetch('/detect', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({url})
-  });
-  const data = await res.json();
-  renderResult(data, 'URL');
+  var url = document.getElementById('url-input').value;
+  try {
+    var res = await fetch('/detect', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({url: url})
+    });
+    if (!res.ok) { showError('Server error (' + res.status + '). Check the terminal.'); return; }
+    renderResult(await res.json(), 'URL');
+  } catch (e) {
+    showError('Could not reach the server.');
+  }
 }
 
 async function analyzeMessage() {
-  const message = document.getElementById('message-input').value;
-  const res = await fetch('/detect-message', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({message})
-  });
-  const data = await res.json();
-  renderResult(data, 'Message');
+  var message = document.getElementById('message-input').value;
+  try {
+    var res = await fetch('/detect-message', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({message: message})
+    });
+    if (!res.ok) { showError('Server error (' + res.status + '). Check the terminal.'); return; }
+    renderResult(await res.json(), 'Message');
+  } catch (e) {
+    showError('Could not reach the server.');
+  }
 }
 
 async function loadHistory() {
-  const res = await fetch('/history');
-  const data = await res.json();
-  const rows = [];
-  data.urls.forEach(u => rows.push({type: 'URL', content: u.url, score: u.risk_score, verdict: u.verdict}));
-  data.messages.forEach(m => rows.push({type: 'Message', content: m.message, score: m.risk_score, verdict: m.verdict}));
-  const tbody = document.querySelector('#history-table tbody');
-  tbody.innerHTML = rows.map(r => `
-    <tr><td>${r.type}</td><td>${r.content.substring(0,40)}</td><td>${r.score}</td><td>${r.verdict}</td></tr>
-  `).join('');
+  var res = await fetch('/history');
+  var data = await res.json();
+  var rows = [];
+  data.urls.forEach(function (u) { rows.push({type: 'URL', content: u.url, score: u.risk_score, verdict: u.verdict}); });
+  data.messages.forEach(function (m) { rows.push({type: 'Message', content: m.message, score: m.risk_score, verdict: m.verdict}); });
+  document.querySelector('#history-table tbody').innerHTML = rows.map(function (r) {
+    return '<tr><td>' + r.type + '</td><td>' + esc(r.content.substring(0, 40)) + '</td><td>' +
+           esc(r.score) + '</td><td>' + esc(r.verdict) + '</td></tr>';
+  }).join('');
+}
+
+async function loadBlocklist() {
+  var res = await fetch('/blocklist');
+  var data = await res.json();
+  document.querySelector('#blocklist-table tbody').innerHTML = data.domains.map(function (d) {
+    return '<tr><td><code>' + esc(defang(d.domain)) + '</code></td><td>' + esc(d.times_seen) + '</td></tr>';
+  }).join('');
 }
 
 loadHistory();
+loadBlocklist();
 </script>
 
 </body>
