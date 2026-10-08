@@ -8,6 +8,9 @@ import datetime
 import joblib
 import pandas as pd
 import re
+import json
+from sqlalchemy import func
+from app.message_detector import analyze_message
 
 app = FastAPI(title="Scam Detection API")
 url_model = joblib.load("app/url_model_v2.pkl")
@@ -256,61 +259,54 @@ class MessageRequest(BaseModel):
     message: str
 
 
-URGENCY_WORDS = ["urgent", "immediately", "act now", "suspended", "verify now", "expire", "limited time"]
-CREDENTIAL_WORDS = ["password", "otp", "pin", "cvv", "verify your account", "bank details", "card number"]
-PRIZE_WORDS = ["congratulations", "winner", "lottery", "prize", "claim your", "free gift"]
-
-
-def extract_message_features(message: str) -> dict:
-    text = message.lower()
-    return {
-        "length": len(message),
-        "has_url": bool(re.search(r"https?://|www\.", text)),
-        "urgency_hits": sum(1 for w in URGENCY_WORDS if w in text),
-        "credential_hits": sum(1 for w in CREDENTIAL_WORDS if w in text),
-        "prize_hits": sum(1 for w in PRIZE_WORDS if w in text),
-        "exclaim_count": message.count("!"),
-        "caps_ratio": sum(1 for c in message if c.isupper()) / max(len(message), 1),
-    }
-
-
-def score_message(features: dict) -> dict:
-    risk = 0
-    reasons = []
-    if features["urgency_hits"] > 0:
-        risk += 25
-        reasons.append("Contains urgency or threatening language")
-    if features["credential_hits"] > 0:
-        risk += 35
-        reasons.append("Requests sensitive credentials or financial info")
-    if features["prize_hits"] > 0:
-        risk += 25
-        reasons.append("Contains prize or reward scam language")
-    if features["has_url"]:
-        risk += 10
-        reasons.append("Contains a link")
-    if features["exclaim_count"] >= 2:
-        risk += 5
-        reasons.append("Excessive exclamation marks")
-
-    verdict = "HIGH RISK" if risk >= 60 else "SUSPICIOUS" if risk >= 30 else "LOW RISK"
-    return {"risk_score": min(risk, 100), "verdict": verdict, "reasons": reasons}
-
-
 @app.post("/detect-message")
 def detect_message(request: MessageRequest):
-    features = extract_message_features(request.message)
-    result = score_message(features)
+    result = analyze_message(request.message)
 
     save_message_record(request.message, result["risk_score"],
                         result["verdict"], result["reasons"])
 
     return {
         "message": request.message,
-        "features": features,
         **result,
         "recommendations": build_recommendations(result["verdict"], result["reasons"]),
     }
+
+
+# ---------- Graph data ----------
+
+def count_by_verdict(db, model):
+    counts = {"LOW RISK": 0, "SUSPICIOUS": 0, "HIGH RISK": 0}
+    rows = db.query(model.verdict, func.count(model.id)).group_by(model.verdict).all()
+    for verdict, n in rows:
+        if verdict in counts:
+            counts[verdict] = n
+    return counts
+
+
+@app.get("/stats")
+def get_stats():
+    empty = {"LOW RISK": 0, "SUSPICIOUS": 0, "HIGH RISK": 0}
+    try:
+        db = SessionLocal()
+        try:
+            return {"urls": count_by_verdict(db, URLAnalysis),
+                    "messages": count_by_verdict(db, MessageAnalysis)}
+        finally:
+            db.close()
+    except Exception as e:
+        print("Stats failed:", e)
+        return {"urls": empty, "messages": dict(empty), "error": "Database unavailable"}
+
+
+@app.get("/model-metrics")
+def model_metrics():
+    try:
+        with open("app/model_metrics.json", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception as e:
+        print("Model metrics failed:", e)
+        return {"models": []}
 
 
 # ---------- History and blocklist views ----------

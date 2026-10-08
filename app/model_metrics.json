@@ -1,0 +1,20 @@
+{
+  "models": [
+    {
+      "name": "Random Forest (URLs)",
+      "dataset": "Mendeley phishing URL dataset, 41,775 test URLs",
+      "accuracy": 98.4,
+      "precision": 99.51,
+      "recall": 97.28,
+      "f1": 98.38
+    },
+    {
+      "name": "TF-IDF + Logistic Regression (messages)",
+      "dataset": "UCI SMS Spam Collection, 1,115 test messages",
+      "accuracy": 98.3,
+      "precision": 94.52,
+      "recall": 92.62,
+      "f1": 93.56
+    }
+  ]
+}

@@ -2,71 +2,143 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Scam Detection System</title>
 <style>
-  body { font-family: Arial, sans-serif; max-width: 700px; margin: 40px auto; background: #0f1117; color: #e6e6e6; padding: 0 10px; }
-  h1 { text-align: center; }
-  .tabs { display: flex; margin-bottom: 20px; }
-  .tab { flex: 1; padding: 10px; text-align: center; cursor: pointer; background: #1c1f2b; border: none; color: #ccc; }
-  .tab.active { background: #2d6cdf; color: white; }
-  textarea, input { width: 100%; padding: 10px; margin-top: 10px; border-radius: 6px; border: 1px solid #333; background: #1c1f2b; color: white; box-sizing: border-box; }
-  button.analyze { margin-top: 10px; padding: 10px 20px; background: #2d6cdf; color: white; border: none; border-radius: 6px; cursor: pointer; }
-  .result { margin-top: 20px; padding: 15px; border-radius: 8px; }
-  .LOW { background: #163d24; border: 1px solid #2ecc71; }
-  .SUSPICIOUS { background: #4d3b12; border: 1px solid #f1c40f; }
-  .HIGH { background: #4d1414; border: 1px solid #e74c3c; }
-  .blockbar { background: #b01919; color: white; padding: 10px; font-weight: bold; border-radius: 6px; margin-bottom: 10px; }
+  :root { --bg:#0f1117; --card:#171a26; --line:#262b3d; --text:#e6e6e6; --mut:#9aa3b8; --blue:#2d6cdf; }
+  * { box-sizing: border-box; }
+  body { font-family: Arial, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 20px 12px 50px; }
+  .wrap { max-width: 780px; margin: 0 auto; }
+  header { text-align: center; margin-bottom: 18px; }
+  h1 { margin: 0; font-size: 28px; }
+  header p { color: var(--mut); margin: 6px 0 0; }
+  h2 { font-size: 18px; margin: 0 0 10px; }
+  h3 { margin: 12px 0 4px; }
+  h4 { margin: 12px 0 4px; font-size: 14px; color: var(--mut); text-transform: uppercase; letter-spacing: .04em; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-top: 16px; }
+  .tabs { display: flex; gap: 6px; margin-bottom: 12px; }
+  .tab { flex: 1; padding: 10px; cursor: pointer; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; color: #ccc; font-size: 14px; }
+  .tab.active { background: var(--blue); border-color: var(--blue); color: #fff; }
+  textarea, input, select { width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #333; background: var(--bg); color: #fff; font-size: 14px; }
+  select { width: auto; margin-left: 6px; padding: 6px; }
+  button.go { margin-top: 10px; padding: 10px 22px; background: var(--blue); color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; }
+  button.go:disabled { opacity: .6; cursor: wait; }
+  .chips { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 13px; color: var(--mut); }
+  .chip { background: var(--bg); border: 1px solid var(--line); color: var(--text); border-radius: 14px; padding: 4px 10px; cursor: pointer; font-size: 12px; }
+  .chip:hover { border-color: var(--blue); }
+  .result { margin-top: 16px; }
+  .rhead { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+  .gauge { width: 104px; height: 104px; border-radius: 50%; flex: none; display: flex; align-items: center; justify-content: center;
+           background: conic-gradient(var(--c) calc(var(--p) * 1%), #262b3d 0); }
+  .gauge-in { width: 80px; height: 80px; border-radius: 50%; background: var(--card); display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .gauge-in b { font-size: 24px; }
+  .gauge-in small { color: var(--mut); font-size: 11px; }
+  .badge { display: inline-block; color: #111; font-weight: bold; font-size: 12px; padding: 3px 9px; border-radius: 10px; }
+  .rtext { margin-top: 8px; word-break: break-all; }
+  .mut { color: var(--mut); display: block; margin-top: 6px; }
+  .cols { display: flex; gap: 20px; flex-wrap: wrap; }
+  .cols > div { flex: 1; min-width: 240px; }
+  .blockbar { background: #b01919; color: #fff; padding: 10px; font-weight: bold; border-radius: 6px; margin-bottom: 12px; }
   code { background: #000; padding: 2px 6px; border-radius: 4px; word-break: break-all; }
   a { color: #7fb0ff; }
-  ul { padding-left: 20px; }
-  table { width: 100%; margin-top: 10px; border-collapse: collapse; font-size: 14px; }
-  th, td { border: 1px solid #333; padding: 6px; text-align: left; }
-  th { background: #1c1f2b; }
+  ul { padding-left: 20px; margin: 4px 0; }
+  li { margin: 3px 0; }
+  .tablewrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { border-bottom: 1px solid var(--line); padding: 7px 6px; text-align: left; }
+  th { color: var(--mut); font-weight: normal; }
+  .bar-row { display: flex; align-items: center; margin: 6px 0; font-size: 14px; }
+  .bar-label { width: 110px; }
+  .bar-track { flex: 1; background: var(--bg); border-radius: 4px; height: 18px; overflow: hidden; }
+  .bar-fill { height: 100%; }
+  .bar-value { width: 110px; text-align: right; padding-left: 8px; }
 </style>
 </head>
 <body>
+<div class="wrap">
 
-<h1>🛡️ Scam Detection System</h1>
+<header>
+  <h1>&#128737;&#65039; Scam Detection System</h1>
+  <p>ScamGuard: check a link or message before you trust it</p>
+</header>
 
-<div class="tabs">
-  <button class="tab active" onclick="switchTab('url', this)">Check URL</button>
-  <button class="tab" onclick="switchTab('message', this)">Check Message</button>
-</div>
+<div class="card">
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('url', this)">Check URL</button>
+    <button class="tab" onclick="switchTab('message', this)">Check Message</button>
+  </div>
 
-<div id="url-panel">
-  <input id="url-input" placeholder="Enter a URL, e.g. https://example.com/login" />
-  <button class="analyze" onclick="analyzeUrl()">Analyze URL</button>
-</div>
+  <div id="url-panel">
+    <input id="url-input" placeholder="Enter a URL, e.g. https://example.com/login" />
+    <button class="go" id="url-btn" onclick="run('URL')">Analyze URL</button>
+    <div class="chips">Try an example:
+      <span class="chip" onclick="useExample('url-input', 'https://www.wikipedia.org/wiki/Machine_learning')">Safe site</span>
+      <span class="chip" onclick="useExample('url-input', 'http://free-prize-claim-now.xyz/winner')">Prize scam</span>
+      <span class="chip" onclick="useExample('url-input', 'http://192.168.1.1-secure-login.xyz/verify')">Fake login</span>
+    </div>
+  </div>
 
-<div id="message-panel" style="display:none;">
-  <textarea id="message-input" rows="4" placeholder="Paste a suspicious message here..."></textarea>
-  <button class="analyze" onclick="analyzeMessage()">Analyze Message</button>
+  <div id="message-panel" style="display:none;">
+    <textarea id="message-input" rows="4" placeholder="Paste a suspicious message here (Ctrl+Enter to analyze)..."></textarea>
+    <button class="go" id="msg-btn" onclick="run('Message')">Analyze Message</button>
+    <div class="chips">Try an example:
+      <span class="chip" onclick="useExample('message-input', 'URGENT! Your account will be suspended. Verify your OTP immediately to claim your prize!')">OTP scam</span>
+      <span class="chip" onclick="useExample('message-input', 'Dear customer, your SBI account is blocked. Update your card number now at http://sbi-kyc-update.xyz/login or your account will expire.')">Fake bank</span>
+      <span class="chip" onclick="useExample('message-input', 'Hi, are we still meeting for lunch at 1 pm tomorrow?')">Normal message</span>
+    </div>
+  </div>
 </div>
 
 <div id="result"></div>
 
-<h2>Recent Detections</h2>
-<table id="history-table">
-  <thead><tr><th>Type</th><th>Content</th><th>Score</th><th>Verdict</th></tr></thead>
-  <tbody></tbody>
-</table>
+<div class="card">
+  <button class="go" id="graphs-btn" style="margin-top:0" onclick="toggleGraphs()">Show graphs</button>
+  <div id="graphs-panel" style="display:none; margin-top:12px;">
+    <label>Graph view:
+      <select id="graph-view" onchange="refreshGraphs()">
+        <option value="both">Detection results + model performance</option>
+        <option value="results">Detection results only</option>
+        <option value="models">Model performance only</option>
+      </select>
+    </label>
+    <div id="graphs-content"></div>
+  </div>
+</div>
 
-<h2>Blocklist (domains flagged high risk)</h2>
-<table id="blocklist-table">
-  <thead><tr><th>Domain</th><th>Times seen</th></tr></thead>
-  <tbody></tbody>
-</table>
+<div class="card">
+  <h2>Recent Detections</h2>
+  <div class="tablewrap">
+    <table id="history-table">
+      <thead><tr><th>Type</th><th>Content</th><th>Score</th><th>Verdict</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Blocklist (domains flagged high risk)</h2>
+  <div class="tablewrap">
+    <table id="blocklist-table">
+      <thead><tr><th>Domain</th><th>Times seen</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</div>
+
+</div>
 
 <script>
+var COLOR = {'HIGH RISK': '#e74c3c', 'SUSPICIOUS': '#f1c40f', 'LOW RISK': '#2ecc71'};
+var graphsVisible = false;
+
 function esc(s) {
   return String(s).replace(/[&<>"']/g, function (c) {
     return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c];
   });
 }
-
-function defang(u) {
-  return u.replace(/^http/i, 'hxxp').replace(/\./g, '[.]');
-}
+function defang(u) { return u.replace(/^http/i, 'hxxp').replace(/\./g, '[.]'); }
+function badge(v) { return '<span class="badge" style="background:' + (COLOR[v] || '#888') + '">' + esc(v) + '</span>'; }
+function li(a) { return a.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join(''); }
 
 function switchTab(tab, btn) {
   document.getElementById('url-panel').style.display = tab === 'url' ? 'block' : 'none';
@@ -75,100 +147,163 @@ function switchTab(tab, btn) {
   btn.classList.add('active');
 }
 
-function verdictClass(v) {
-  if (v === 'HIGH RISK') return 'HIGH';
-  if (v === 'SUSPICIOUS') return 'SUSPICIOUS';
-  return 'LOW';
+function useExample(id, text) {
+  var el = document.getElementById(id);
+  el.value = text;
+  el.focus();
 }
 
-function renderResult(data, kind) {
-  var cls = verdictClass(data.verdict);
-  var text = kind === 'URL' ? data.url : data.message;
-  var banner = '';
-  var shown = esc(text);
-
-  if (data.verdict === 'HIGH RISK') {
-    var action = kind === 'URL' ? 'do not open this link' : 'do not reply or click anything';
-    var extra = data.blocked ? ' (domain is on the blocklist)' : '';
-    banner = '<div class="blockbar">&#9940; BLOCKED: ' + action + extra + '</div>';
-    if (kind === 'URL') {
-      shown = '<code>' + esc(defang(text)) + '</code> (link disabled)';
-    }
-  } else if (kind === 'URL' && data.verdict === 'LOW RISK' && /^https?:\/\//i.test(text)) {
-    shown = esc(text) + ' <a href="' + esc(text) + '" target="_blank" rel="noopener noreferrer">open link</a>';
-  }
-
-  var reasons = data.reasons.map(function (r) { return '<li>' + esc(r) + '</li>'; }).join('');
-  var recs = data.recommendations.map(function (r) { return '<li>' + esc(r) + '</li>'; }).join('');
-
-  document.getElementById('result').innerHTML =
-    '<div class="result ' + cls + '">' + banner +
-    '<h3>' + esc(data.verdict) + ' - Score: ' + esc(data.risk_score) + '/100</h3>' +
-    '<strong>' + kind + ':</strong> ' + shown +
-    '<h4>Why it was flagged</h4><ul>' + reasons + '</ul>' +
-    '<h4>Recommended actions</h4><ul>' + recs + '</ul></div>';
-
-  loadHistory();
-  loadBlocklist();
+function setBusy(btn, on, label) {
+  btn.disabled = on;
+  btn.textContent = on ? 'Analyzing...' : label;
 }
 
 function showError(msg) {
-  document.getElementById('result').innerHTML = '<div class="result HIGH">' + esc(msg) + '</div>';
+  document.getElementById('result').innerHTML =
+    '<div class="card result" style="border-left:5px solid #e74c3c">' + esc(msg) + '</div>';
 }
 
-async function analyzeUrl() {
-  var url = document.getElementById('url-input').value;
+function renderResult(d, kind) {
+  var v = d.verdict, c = COLOR[v] || '#888';
+  var text = kind === 'URL' ? d.url : d.message;
+  var shown = esc(text), banner = '';
+
+  if (v === 'HIGH RISK') {
+    banner = '<div class="blockbar">&#9940; BLOCKED: ' +
+      (kind === 'URL' ? 'do not open this link' : 'do not reply or click anything') +
+      (d.blocked ? ' (domain is on the blocklist)' : '') + '</div>';
+    if (kind === 'URL') { shown = '<code>' + esc(defang(text)) + '</code> <small>(link disabled)</small>'; }
+  } else if (kind === 'URL' && v === 'LOW RISK' && /^https?:\/\//i.test(text)) {
+    shown = esc(text) + ' <a href="' + esc(text) + '" target="_blank" rel="noopener noreferrer">open link</a>';
+  }
+
+  var src = d.scored_by ? '<small class="mut">Scored by ' + (d.scored_by === 'ml' ? 'ML model' : 'keyword rules') + '</small>' : '';
+  var gauge = '<div class="gauge" style="--p:' + Number(d.risk_score) + ';--c:' + c + '">' +
+              '<div class="gauge-in"><b>' + esc(d.risk_score) + '</b><small>/100</small></div></div>';
+
+  document.getElementById('result').innerHTML =
+    '<div class="card result" style="border-left:5px solid ' + c + '">' + banner +
+    '<div class="rhead">' + gauge + '<div>' + badge(v) +
+    '<div class="rtext">' + shown + '</div>' + src + '</div></div>' +
+    '<div class="cols"><div><h4>Why it was flagged</h4><ul>' + li(d.reasons) + '</ul></div>' +
+    '<div><h4>Recommended actions</h4><ul>' + li(d.recommendations) + '</ul></div></div></div>';
+}
+
+async function run(kind) {
+  var isUrl = kind === 'URL';
+  var input = document.getElementById(isUrl ? 'url-input' : 'message-input');
+  var btn = document.getElementById(isUrl ? 'url-btn' : 'msg-btn');
+  var label = isUrl ? 'Analyze URL' : 'Analyze Message';
+  var val = input.value.trim();
+  if (!val) { showError('Please enter ' + (isUrl ? 'a URL' : 'a message') + ' first.'); return; }
+
+  setBusy(btn, true, label);
   try {
-    var res = await fetch('/detect', {
+    var res = await fetch(isUrl ? '/detect' : '/detect-message', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({url: url})
+      body: JSON.stringify(isUrl ? {url: val} : {message: val})
     });
-    if (!res.ok) { showError('Server error (' + res.status + '). Check the terminal.'); return; }
-    renderResult(await res.json(), 'URL');
+    if (!res.ok) {
+      showError('Server error (' + res.status + '). Check the terminal.');
+    } else {
+      renderResult(await res.json(), kind);
+      loadHistory();
+      loadBlocklist();
+      if (graphsVisible) { refreshGraphs(); }
+    }
   } catch (e) {
     showError('Could not reach the server.');
   }
-}
-
-async function analyzeMessage() {
-  var message = document.getElementById('message-input').value;
-  try {
-    var res = await fetch('/detect-message', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({message: message})
-    });
-    if (!res.ok) { showError('Server error (' + res.status + '). Check the terminal.'); return; }
-    renderResult(await res.json(), 'Message');
-  } catch (e) {
-    showError('Could not reach the server.');
-  }
+  setBusy(btn, false, label);
 }
 
 async function loadHistory() {
-  var res = await fetch('/history');
-  var data = await res.json();
-  var rows = [];
-  data.urls.forEach(function (u) { rows.push({type: 'URL', content: u.url, score: u.risk_score, verdict: u.verdict}); });
-  data.messages.forEach(function (m) { rows.push({type: 'Message', content: m.message, score: m.risk_score, verdict: m.verdict}); });
-  document.querySelector('#history-table tbody').innerHTML = rows.map(function (r) {
-    return '<tr><td>' + r.type + '</td><td>' + esc(r.content.substring(0, 40)) + '</td><td>' +
-           esc(r.score) + '</td><td>' + esc(r.verdict) + '</td></tr>';
-  }).join('');
+  try {
+    var data = await (await fetch('/history')).json();
+    var rows = [];
+    data.urls.forEach(function (u) { rows.push({type: 'URL', content: u.url, score: u.risk_score, verdict: u.verdict}); });
+    data.messages.forEach(function (m) { rows.push({type: 'Message', content: m.message, score: m.risk_score, verdict: m.verdict}); });
+    document.querySelector('#history-table tbody').innerHTML = rows.length ? rows.map(function (r) {
+      return '<tr><td>' + r.type + '</td><td>' + esc(r.content.substring(0, 45)) + '</td><td>' +
+             esc(r.score) + '</td><td>' + badge(r.verdict) + '</td></tr>';
+    }).join('') : '<tr><td colspan="4">No checks yet.</td></tr>';
+  } catch (e) { /* leave table as is */ }
 }
 
 async function loadBlocklist() {
-  var res = await fetch('/blocklist');
-  var data = await res.json();
-  document.querySelector('#blocklist-table tbody').innerHTML = data.domains.map(function (d) {
-    return '<tr><td><code>' + esc(defang(d.domain)) + '</code></td><td>' + esc(d.times_seen) + '</td></tr>';
+  try {
+    var data = await (await fetch('/blocklist')).json();
+    document.querySelector('#blocklist-table tbody').innerHTML = data.domains.length ? data.domains.map(function (d) {
+      return '<tr><td><code>' + esc(defang(d.domain)) + '</code></td><td>' + esc(d.times_seen) + '</td></tr>';
+    }).join('') : '<tr><td colspan="2">Nothing blocked yet.</td></tr>';
+  } catch (e) { /* leave table as is */ }
+}
+
+function toggleGraphs() {
+  graphsVisible = !graphsVisible;
+  document.getElementById('graphs-panel').style.display = graphsVisible ? 'block' : 'none';
+  document.getElementById('graphs-btn').textContent = graphsVisible ? 'Hide graphs' : 'Show graphs';
+  if (graphsVisible) { refreshGraphs(); }
+}
+
+function barRow(label, pct, text, color) {
+  var w = Math.max(0, Math.min(100, pct));
+  return '<div class="bar-row"><div class="bar-label">' + esc(label) + '</div>' +
+    '<div class="bar-track"><div class="bar-fill" style="width:' + w + '%;background:' + color + '"></div></div>' +
+    '<div class="bar-value">' + esc(text) + '</div></div>';
+}
+
+function verdictBars(title, counts) {
+  var total = (counts['LOW RISK'] || 0) + (counts['SUSPICIOUS'] || 0) + (counts['HIGH RISK'] || 0);
+  var out = '<h4>' + esc(title) + ' (' + total + ' checks)</h4>';
+  if (total === 0) { return out + '<p>No checks yet.</p>'; }
+  ['LOW RISK', 'SUSPICIOUS', 'HIGH RISK'].forEach(function (k) {
+    var n = counts[k] || 0, pct = n / total * 100;
+    out += barRow(k, pct, n + ' (' + pct.toFixed(1) + '%)', COLOR[k]);
+  });
+  return out;
+}
+
+function modelBars(models) {
+  if (!models.length) { return '<p>No model metrics available.</p>'; }
+  return models.map(function (m) {
+    return '<h4>' + esc(m.name) + '</h4><small class="mut">' + esc(m.dataset) + '</small>' +
+      barRow('Accuracy', m.accuracy, m.accuracy + '%', '#2d6cdf') +
+      barRow('Precision', m.precision, m.precision + '%', '#2d6cdf') +
+      barRow('Recall', m.recall, m.recall + '%', '#2d6cdf') +
+      barRow('F1-score', m.f1, m.f1 + '%', '#2d6cdf');
   }).join('');
 }
+
+async function refreshGraphs() {
+  var view = document.getElementById('graph-view').value;
+  var out = '';
+  try {
+    if (view === 'results' || view === 'both') {
+      var s = await (await fetch('/stats')).json();
+      out += '<h3>Detection results</h3>' + verdictBars('URL checks', s.urls) + verdictBars('Message checks', s.messages);
+    }
+    if (view === 'models' || view === 'both') {
+      var m = await (await fetch('/model-metrics')).json();
+      out += '<h3>Model performance</h3>' + modelBars(m.models) +
+             '<small class="mut">Measured on held-out test sets during training, not recalculated live.</small>';
+    }
+  } catch (e) {
+    out = '<p>Could not load graph data.</p>';
+  }
+  document.getElementById('graphs-content').innerHTML = out;
+}
+
+document.getElementById('url-input').addEventListener('keydown', function (e) {
+  if (e.key === 'Enter') { run('URL'); }
+});
+document.getElementById('message-input').addEventListener('keydown', function (e) {
+  if (e.key === 'Enter' && e.ctrlKey) { run('Message'); }
+});
 
 loadHistory();
 loadBlocklist();
 </script>
-
 </body>
 </html>
